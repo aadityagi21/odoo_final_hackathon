@@ -1,9 +1,9 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -11,64 +11,51 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- MONGODB CONNECTION ---
-// Replace with your MongoDB URI, e.g., mongodb://localhost:27017/urban_furniture
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/urban_furniture';
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key';
+// Connect to MongoDB Atlas
+const PORT = process.env.PORT || 5000;
+const MONGO_URI = process.env.MONGO_URI;
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
-// --- MONGOOSE SCHEMAS & MODELS ---
-const userSchema = new mongoose.Schema({
+// --- Database Schemas ---
+const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true }
 });
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model('User', UserSchema);
 
-// A single unified schema to store the accounting data for simplicity in this demo.
-const storeSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  contacts: Array,
-  products: Array,
-  accounts: Array,
-  journals: Array,
-  analyticAccounts: Array,
-  budgets: Array,
-  salesOrders: Array,
-  purchaseOrders: Array,
-  journalEntries: Array
+const AppDataSchema = new mongoose.Schema({
+  userId: { type: String, required: true, unique: true },
+  contacts: { type: Array, default: [] },
+  products: { type: Array, default: [] },
+  accounts: { type: Array, default: [] },
+  journals: { type: Array, default: [] },
+  analyticAccounts: { type: Array, default: [] },
+  budgets: { type: Array, default: [] },
+  salesOrders: { type: Array, default: [] },
+  purchaseOrders: { type: Array, default: [] },
+  journalEntries: { type: Array, default: [] }
 });
-const Store = mongoose.model('Store', storeSchema);
+const AppData = mongoose.model('AppData', AppDataSchema);
 
-// --- AUTHENTICATION MIDDLEWARE ---
-const requireAuth = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (err) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-};
-
-// --- ROUTES: AUTH ---
+// --- Auth Routes ---
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password } = req.body;
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ error: 'Email already in use' });
+    if (existingUser) return res.status(400).json({ error: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ email, password: hashedPassword });
-    
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { email: user.email, id: user._id } });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error during registration' });
+    const newUser = new User({ email, password: hashedPassword });
+    await newUser.save();
+
+    const token = jwt.sign({ id: newUser._id, email: newUser.email }, JWT_SECRET);
+    res.json({ token, user: { id: newUser._id, email: newUser.email } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -76,50 +63,74 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ error: 'User not found' });
+    if (!user) return res.status(400).json({ error: 'Invalid email or password' });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
+    if (!isMatch) return res.status(400).json({ error: 'Invalid email or password' });
 
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { email: user.email, id: user._id } });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error during login' });
+    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET);
+    res.json({ token, user: { id: user._id, email: user.email } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// --- ROUTES: ACCOUNTING DATA ---
-app.get('/api/data', requireAuth, async (req, res) => {
+// --- Middleware to verify JWT ---
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Access denied' });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    req.user = user;
+    next();
+  });
+};
+
+// --- Data Synchronization Routes ---
+app.get('/api/data', verifyToken, async (req, res) => {
   try {
-    let store = await Store.findOne({ userId: req.userId });
-    if (!store) {
-      // Return empty default state if user has no data yet
-      return res.json({
-        contacts: [], products: [], accounts: [], journals: [], 
-        analyticAccounts: [], budgets: [], salesOrders: [], 
-        purchaseOrders: [], journalEntries: []
+    let data = await AppData.findOne({ userId: req.user.id });
+    if (!data) {
+      // Initialize with default chart of accounts and journals if new user
+      data = new AppData({
+        userId: req.user.id,
+        accounts: [
+          { id: 'A1', name: 'Bank Account', type: 'Asset' },
+          { id: 'A2', name: 'Cash Account', type: 'Asset' },
+          { id: 'A3', name: 'Accounts Receivable', type: 'Asset' },
+          { id: 'A4', name: 'Accounts Payable', type: 'Liability' },
+          { id: 'A5', name: 'Sales Revenue', type: 'Income' },
+          { id: 'A6', name: 'Cost of Goods Sold', type: 'Expense' }
+        ],
+        journals: [
+          { id: 'J1', name: 'Sales Journal', type: 'Sales' },
+          { id: 'J2', name: 'Purchase Journal', type: 'Purchase' },
+          { id: 'J3', name: 'Bank/Cash Journal', type: 'Bank' }
+        ]
       });
+      await data.save();
     }
-    res.json(store);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch data' });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/data', requireAuth, async (req, res) => {
+app.post('/api/data', verifyToken, async (req, res) => {
   try {
-    const updateData = req.body;
-    await Store.findOneAndUpdate(
-      { userId: req.userId }, 
-      { ...updateData, userId: req.userId }, 
-      { upsert: true, new: true }
+    const updatedData = await AppData.findOneAndUpdate(
+      { userId: req.user.id },
+      { ...req.body, userId: req.user.id },
+      { new: true, upsert: true }
     );
-    res.json({ message: 'Data synced successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to save data' });
+    res.json(updatedData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 API Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 API Server running on http://localhost:${PORT}`);
+});
