@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Urban Furniture - Accounting System Authentication</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪑</text></svg>">
+</head>
+<body>
+
+  <!-- Ambient Glow Effects -->
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <div class="app-container" id="appContainer">
+
+    <!-- Brand Header -->
+    <header class="brand-header">
+      <div class="logo-badge">
+        <div class="logo-icon">od</div>
+        <span class="logo-text">odoo | Urban Furniture</span>
+      </div>
+      <p class="brand-subtitle">Accounting & ERP Enterprise Management System</p>
+    </header>
+
+    <!-- Auth Card Container -->
+    <div class="auth-card" id="authCard">
+      
+      <!-- Tab Navigation -->
+      <nav class="tab-navigation" id="tabNav">
+        <button class="tab-btn active" id="tabSignInBtn" onclick="switchTab('signin')">Sign In</button>
+        <button class="tab-btn" id="tabSignUpBtn" onclick="switchTab('signup')">Create User / Sign Up</button>
+      </nav>
+
+      <!-- Alert Notification Area -->
+      <div id="alertBox" class="alert-box" style="display: none;"></div>
+
+      <!-- SIGN IN FORM -->
+      <form id="signInForm" onsubmit="handleLogin(event)">
+        <h3 class="form-title">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+          Sign In to System
+        </h3>
+
+        <div class="form-group">
+          <label class="form-label" for="loginId">Login Id / Email -</label>
+          <div class="input-wrapper">
+            <input type="text" id="loginId" class="form-input" placeholder="Enter Login Id or Email" required autocomplete="username">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password -</label>
+          <div class="input-wrapper">
+            <input type="password" id="password" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
+            <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('password', this)" title="Toggle Password">
+              👁️
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="btnSignIn">
+          <span>SIGN IN</span>
+        </button>
+
+        <div class="form-links">
+          <span class="form-link" onclick="switchTab('forgot')">Forgot Password</span>
+          <span>&nbsp;|&nbsp;</span>
+          <span class="form-link" onclick="switchTab('signup')">Sign Up</span>
+        </div>
+      </form>
+
+
+      <!-- CREATE USER / SIGN UP FORM -->
+      <form id="signUpForm" onsubmit="handleSignUp(event)" style="display: none;">
+        <h3 class="form-title">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+          Create User Account
+        </h3>
+
+        <div class="form-group">
+          <label class="form-label" for="signupName">Full Name -</label>
+          <div class="input-wrapper">
+            <input type="text" id="signupName" class="form-input" placeholder="e.g. Rahul Sharma" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="signupLoginId">Login id -</label>
+          <div class="input-wrapper">
+            <input type="text" id="signupLoginId" class="form-input" placeholder="6-12 characters unique ID" minlength="6" maxlength="12" required oninput="validateLoginIdInput(this)">
+          </div>
+          <span class="input-hint">Must be 6 to 12 characters and unique in database</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="signupEmail">E-mail id -</label>
+          <div class="input-wrapper">
+            <input type="email" id="signupEmail" class="form-input" placeholder="name@domain.com" required>
+          </div>
+          <span class="input-hint">Must be a valid non-duplicate email</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Role -</label>
+          <div class="role-radio-group">
+            <label class="role-radio-card" id="roleUserCard">
+              <input type="radio" name="signupRole" value="User" onclick="selectRoleCard('User')">
+              <span class="role-title">User</span>
+              <span class="role-desc">Customer / Contact</span>
+            </label>
+            <label class="role-radio-card active" id="roleAccountantCard">
+              <input type="radio" name="signupRole" value="Accountant" checked onclick="selectRoleCard('Accountant')">
+              <span class="role-title">Accountant</span>
+              <span class="role-desc">Invoicing & Ledger</span>
+            </label>
+            <label class="role-radio-card" id="roleAdminCard">
+              <input type="radio" name="signupRole" value="Administrator" onclick="selectRoleCard('Administrator')">
+              <span class="role-title">Administrator</span>
+              <span class="role-desc">Business Owner</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="signupPassword">Password -</label>
+          <div class="input-wrapper">
+            <input type="password" id="signupPassword" class="form-input" placeholder="Create strong password" required oninput="evaluatePasswordRequirements(this.value)">
+            <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('signupPassword', this)">👁️</button>
+          </div>
+
+          <!-- Password Rules Checklist -->
+          <div class="password-checklist" id="pwdChecklist">
+            <div class="check-item" id="ruleLength"><span class="check-icon">✕</span> &gt; 8 characters</div>
+            <div class="check-item" id="ruleUpper"><span class="check-icon">✕</span> 1 Uppercase (A-Z)</div>
+            <div class="check-item" id="ruleLower"><span class="check-icon">✕</span> 1 Lowercase (a-z)</div>
+            <div class="check-item" id="ruleSpecial"><span class="check-icon">✕</span> 1 Special (!@#$)</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="signupRePassword">Re-Enter Password -</label>
+          <div class="input-wrapper">
+            <input type="password" id="signupRePassword" class="form-input" placeholder="Confirm password" required oninput="checkPasswordMatch()">
+            <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('signupRePassword', this)">👁️</button>
+          </div>
+          <span class="input-hint" id="matchHint" style="display:none;"></span>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary" id="btnSignUp">Create</button>
+          <button type="button" class="btn btn-secondary" onclick="switchTab('signin')">Cancel</button>
+        </div>
+      </form>
+
+
+      <!-- FORGOT PASSWORD FORM -->
+      <form id="forgotForm" onsubmit="handleForgotPassword(event)" style="display: none;">
+        <h3 class="form-title">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+          Reset Password
+        </h3>
+        <p class="brand-subtitle" style="margin-bottom: 1.2rem; text-align: left;">Enter your registered Login Id or Email address to generate a password reset request token.</p>
+
+        <div class="form-group">
+          <label class="form-label" for="forgotLoginId">Login Id or E-mail id -</label>
+          <div class="input-wrapper">
+            <input type="text" id="forgotLoginId" class="form-input" placeholder="Enter Login Id or Email" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Request Reset Token</button>
+
+        <!-- Token Reset Box (Shown after token generated) -->
+        <div id="resetTokenBox" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--card-border);">
+          <div class="form-group">
+            <label class="form-label">Security Reset Token (Simulated)</label>
+            <input type="text" id="resetTokenInput" class="form-input" readonly>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newPassword">New Password -</label>
+            <div class="input-wrapper">
+              <input type="password" id="newPassword" class="form-input" placeholder="Enter new password">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reNewPassword">Re-Enter New Password -</label>
+            <div class="input-wrapper">
+              <input type="password" id="reNewPassword" class="form-input" placeholder="Re-enter new password">
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="handleResetPasswordSubmit()">Update Password</button>
+        </div>
+
+        <div class="form-links">
+          <span class="form-link" onclick="switchTab('signin')">Back to Sign In</span>
+        </div>
+      </form>
+
+      <!-- DASHBOARD / WELCOME SCREEN (Post Login) -->
+      <div id="dashboardView" class="dashboard-container">
+        <div class="dashboard-header">
+          <div class="user-welcome">
+            <h2 id="dashUserName">Welcome User</h2>
+            <span id="dashUserRole" class="user-role-badge Accountant">Accountant</span>
+          </div>
+          <button class="btn btn-secondary" style="width: auto; padding: 8px 16px;" onclick="handleSignOut()">
+            Sign Out
+          </button>
+        </div>
+
+        <p class="brand-subtitle" style="margin-bottom: 1.5rem; text-align: left;" id="dashRoleDesc">
+          Loading permissions...
+        </p>
+
+        <div class="dashboard-grid" id="dashModulesGrid">
+          <!-- Dynamic Module Cards loaded via JS -->
+        </div>
+
+        <div style="margin-top: 1.5rem; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: var(--radius-sm); font-size: 13px;">
+          <p><strong>Account Info:</strong></p>
+          <p style="color: var(--text-muted); margin-top: 4px;">
+            Login ID: <span id="dashLoginId" style="color:#fff;">-</span> | Email: <span id="dashEmail" style="color:#fff;">-</span>
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="js/auth.js"></script>
+</body>
+</html>
