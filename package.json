@@ -1,0 +1,25 @@
+{
+  "name": "odoo_final",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "concurrently \"npm start --prefix backend\" \"npm run dev --prefix frontend\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aadityagi21/odoo_final_hackathon.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/aadityagi21/odoo_final_hackathon/issues"
+  },
+  "homepage": "https://github.com/aadityagi21/odoo_final_hackathon#readme",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

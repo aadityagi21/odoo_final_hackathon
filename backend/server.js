@@ -17,18 +17,21 @@ const MONGO_URI = process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
+  .then(() => console.log(' Connected to MongoDB'))
+  .catch((err) => console.error(' MongoDB Connection Error:', err));
 
 // --- Database Schemas ---
+// 1. Updated User Schema with roles
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true }
+  password: { type: String, required: true },
+  role: { type: String, enum: ['admin', 'customer'], default: 'customer' }
 });
 const User = mongoose.model('User', UserSchema);
 
+// 2. Updated AppData Schema to use a single company identifier instead of userId
 const AppDataSchema = new mongoose.Schema({
-  userId: { type: String, required: true, unique: true },
+  companyId: { type: String, required: true, unique: true, default: 'URBAN_FURNITURE' },
   contacts: { type: Array, default: [] },
   products: { type: Array, default: [] },
   accounts: { type: Array, default: [] },
@@ -49,11 +52,16 @@ app.post('/api/auth/register', async (req, res) => {
     if (existingUser) return res.status(400).json({ error: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ email, password: hashedPassword });
+    
+    // Automatically assign admin role if it's the admin email
+    const role = email.toLowerCase() === 'admin@urbanfurniture.com' ? 'admin' : 'customer';
+    
+    const newUser = new User({ email, password: hashedPassword, role });
     await newUser.save();
 
-    const token = jwt.sign({ id: newUser._id, email: newUser.email }, JWT_SECRET);
-    res.json({ token, user: { id: newUser._id, email: newUser.email } });
+    // Include role in the JWT token payload
+    const token = jwt.sign({ id: newUser._id, email: newUser.email, role: newUser.role }, JWT_SECRET);
+    res.json({ token, user: { id: newUser._id, email: newUser.email, role: newUser.role } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -68,14 +76,14 @@ app.post('/api/auth/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ error: 'Invalid email or password' });
 
-    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET);
-    res.json({ token, user: { id: user._id, email: user.email } });
+    // Include role in the JWT token payload
+    const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET);
+    res.json({ token, user: { id: user._id, email: user.email, role: user.role } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// --- Middleware to verify JWT ---
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -91,11 +99,12 @@ const verifyToken = (req, res, next) => {
 // --- Data Synchronization Routes ---
 app.get('/api/data', verifyToken, async (req, res) => {
   try {
-    let data = await AppData.findOne({ userId: req.user.id });
+    // 1. Fetch the ONE global Urban Furniture database
+    let data = await AppData.findOne({ companyId: 'URBAN_FURNITURE' });
+    
     if (!data) {
-      // Initialize with default chart of accounts and journals if new user
       data = new AppData({
-        userId: req.user.id,
+        companyId: 'URBAN_FURNITURE',
         accounts: [
           { id: 'A1', name: 'Bank Account', type: 'Asset' },
           { id: 'A2', name: 'Cash Account', type: 'Asset' },
@@ -112,7 +121,26 @@ app.get('/api/data', verifyToken, async (req, res) => {
       });
       await data.save();
     }
-    res.json(data);
+
+    // 2. Role-Based Data Filtering
+    if (req.user.role === 'admin') {
+      // Admin sees everything
+      res.json(data);
+    } else {
+      // Customer sees ONLY their invoices
+      const customerContact = data.contacts.find(c => c.email && c.email.toLowerCase() === req.user.email.toLowerCase());
+      
+      const customerOrders = customerContact 
+        ? data.salesOrders.filter(so => so.contactId === customerContact.id)
+        : [];
+        
+      res.json({ 
+        salesOrders: customerOrders, 
+        isCustomerView: true,
+        // Send a masked version of contacts so names resolve in the table properly
+        contacts: customerContact ? [customerContact] : [] 
+      });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -120,9 +148,14 @@ app.get('/api/data', verifyToken, async (req, res) => {
 
 app.post('/api/data', verifyToken, async (req, res) => {
   try {
+    // SECURITY: Only admins can push global state changes
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized: Only admins can modify master data' });
+    }
+
     const updatedData = await AppData.findOneAndUpdate(
-      { userId: req.user.id },
-      { ...req.body, userId: req.user.id },
+      { companyId: 'URBAN_FURNITURE' },
+      { ...req.body, companyId: 'URBAN_FURNITURE' },
       { new: true, upsert: true }
     );
     res.json(updatedData);
@@ -132,5 +165,5 @@ app.post('/api/data', verifyToken, async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 API Server running on http://localhost:${PORT}`);
+  console.log(` API Server running on http://localhost:${PORT}`);
 });
