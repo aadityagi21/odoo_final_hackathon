@@ -83,17 +83,25 @@ const Table = ({ columns, data, actions }) => (
   </div>
 );
 
-// --- AUTHENTICATION SCREEN (Updated to match image style) ---
+// --- AUTHENTICATION SCREEN ---
 const AuthScreen = ({ onAuthSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // NEW STATE FOR CONFIRM PASSWORD
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // NEW VALIDATION: Check if passwords match during sign up
+    if (!isLogin && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -181,6 +189,20 @@ const AuthScreen = ({ onAuthSuccess }) => {
             />
           </div>
 
+          {/* NEW FIELD: Conditionally render Re-enter Password for Sign Up */}
+          {!isLogin && (
+            <div className="relative">
+              <input 
+                type="password" 
+                required 
+                value={confirmPassword} 
+                onChange={e => setConfirmPassword(e.target.value)}
+                className="block w-full bg-transparent border-0 border-b border-gray-600 py-3 text-white focus:ring-0 focus:border-white transition-colors placeholder-gray-500 text-sm" 
+                placeholder="Re-enter Password"
+              />
+            </div>
+          )}
+
           <div className="pt-6">
             <button 
               type="submit" 
@@ -195,7 +217,11 @@ const AuthScreen = ({ onAuthSuccess }) => {
         {/* Toggle between Login/Signup */}
         <div className="mt-8 text-center space-y-4">
           <button 
-            onClick={() => { setIsLogin(!isLogin); setError(''); }} 
+            onClick={() => { 
+              setIsLogin(!isLogin); 
+              setError(''); 
+              setConfirmPassword(''); // Reset on toggle
+            }} 
             className="text-xs text-gray-500 hover:text-white transition-colors tracking-wide block w-full"
           >
             {isLogin ? "DON'T HAVE AN ACCOUNT? SIGN UP" : "ALREADY HAVE AN ACCOUNT? LOGIN"}
